@@ -1,0 +1,78 @@
+---
+title: "Linear Classification: Heart Disease"
+author: "Data Mining"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data
+
+In this exercise we are going to analyze coronary heart disease determinants. We use data taken from a larger
+dataset, described in  Rousseauw et al, 1983, South African Medical Journal. It contains measurements for several variables of males in a heart-disease high-risk region of the Western Cape, South Africa. These variables are, among others,
+
+Variable    | Description 
+------------| -------------
+*tobacco*		|cumulative tobacco (kg)
+*ldl*	    	|low density lipoprotein cholesterol
+*famhist*		|family history of heart disease (Present, Absent)
+*age*		    |age at onset
+*chd*		    |response, coronary heart disease
+
+The data is available online and can be loaded directly into R.
+
+```{r}
+heart = read.table("https://web.stanford.edu/~hastie/ElemStatLearn/datasets/SAheart.data",
+                 sep=",",head=T,row.names=1)
+```
+
+We use *attach()* so that we can refer to the names of the variables directly.
+
+```{r}
+attach(heart)
+```
+
+The response variable is the presence of coronary heart disease. As explanatory variables we will use *tobacco*, *ldl*, *famhist*, and *age*.
+As such, we are in a binary classification setting. 
+
+Below, we will fit a logistic regression and an LDA model to the data. You can find examples of how to implement the different model in ISLR Chapter 4.7.
+
+## Logistic Regression
+
+- Fit a logistic regression model *chd* depends on the variables *tobacco*, *ldl*, *famhist*, and *age*. You may use the *glm()* function with *family=binomial*. To see the results, use the *summary()* command.
+- Estimate and interpret the odds-ratio for *age* and *famhist*. 
+
+## Linear Discriminant Analysis
+
+- Fit an LDA model to the data set using the *lda()* function from the *MASS* package.
+- Compare the parameter estimates to those from logistic regression and comment on the results.
+
+## Prediction
+
+- Use the models fitted above to predict chd for a person aged 43 who has smoked a total of 3kg tobacco, has a family history of coronary heart disease and a measured ldl level of 5. (You can use the *predict()* function. Note that for logistic regression, this gives the class probabilities, while for LDA, this gives the predicted class. The class probabilities for can be obtained by *predict()$posterior*.)  
+
+
+```{r}
+library(MASS)
+
+prediction_data = data.frame(age = 43,
+                             tobacco = 3,
+                             famhist = "Present",
+                             ldl = 5)
+
+lda.fit = lda(chd ~ tobacco + ldl + famhist + age, data=heart)
+pred = predict(lda.fit, prediction_data)
+print(pred)
+
+
+```
+
+
+
+
+
+
