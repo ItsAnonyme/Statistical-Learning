@@ -1,0 +1,586 @@
+---
+title: "Iris LDA and QDA"
+author: "Data Mining"
+output: pdf_document
+---
+
+## The iris  data
+
+The iris data set is a classical data set first studied by R. A. Fisher in 1936. It contains measurements of sepal and petal length and width for three different species of the iris plant. In this exercise we are concerned with the prediction of species from sepal measurements.
+
+We first load the data. We rename the species 1, 2, and 3 for simplicity, and define a new data frame *niris* with columns containing the species *Species*, sepal length *Slength*, and sepal width *Swidth*. 
+
+library(neuralnet)
+library(MASS)
+
+```{r}
+data(iris)
+X = iris[,1:2]
+y = rep(0,nrow(iris)) #Categories
+y[iris[,5]=="setosa"] = 1
+y[iris[,5]=="versicolor"] = 2
+y[iris[,5]=="virginica"] = 3
+
+niris = data.frame(Species=y, SLength = X[,1], SWidth = X[,2])
+
+niris2 = data.frame(SLength = X[,1], SWidth = X[,2])
+niris2$setosa     <- as.integer(iris[,5] == "setosa")
+niris2$versicolor <- as.integer(iris[,5] == "versicolor")
+niris2$virginica  <- as.integer(iris[,5] == "virginica")
+
+```
+
+
+## Classification error
+
+- Randomly split the data set in two data sets of equal size and name them *train* and *test*.
+- Fit an LDA and a QDA model on the data set *train*.
+- Use *predict()* to predict the species of the observations in the data set *test*.
+- How many observations in the *test* data set are misclassified by the two methods?
+
+## Classification regions
+
+- Plot the classification regions using LDA and QDA on the whole data set *niris* by modifying the code below.
+
+First fit LDA and QDA models by editing the following code:
+
+```{r}
+# Data Split
+set.seed(55)
+index = sample(1:nrow(niris), round(0.5 * nrow(niris)), replace=FALSE)
+train_iris = niris[index, ]
+test_iris = niris[-index, ]
+test_iris$Species  <- factor(test_iris$Species,  levels=1:3, labels=c("setosa","versicolor","virginica"))
+train_iris$Species <- factor(train_iris$Species, levels=1:3, labels=c("setosa","versicolor","virginica"))
+index2 = sample(1:nrow(niris2), round(0.5 * nrow(niris2)), replace = FALSE)
+train_iris2 = niris2[index2, ]
+test_iris2 = niris2[-index2, ]
+
+# Models
+nn = neuralnet("setosa + versicolor + virginica ~ SLength + SWidth", data=train_iris2, hidden=2, linear.output = FALSE, act.fct = "logistic")
+lda.fit = lda(Species ~ SLength + SWidth, data=train_iris)
+qda.fit = qda(Species ~ SLength + SWidth, data=train_iris)
+plot(nn)
+
+pr.nn = compute(nn, test_iris2[, c("SLength", "SWidth")])
+pr.lda = predict(lda.fit, test_iris)
+pr.qda = predict(qda.fit, test_iris)
+
+pr.nn.mat = pr.nn$net.result
+colnames(pr.nn.mat) = c("setosa", "versicolor", "virginica")
+
+pr.nn.class = apply(pr.nn.mat, 1, which.max)
+pr.nn.class = factor(pr.nn.class, levels=1:3, labels = c("setosa", "versicolor", "virginica"))
+
+# Confusion matrices
+cat("\n LDA Confusion Matrix:\n")
+print(table(Predicted = pr.lda$class, Actual = test_iris$Species))
+
+cat("\n NN Confusion Matrix:\n")
+print(table(Predicted = pr.nn.class, Actual = test_iris$Species))
+
+cat("\n QDA Confusion Matrix:\n")
+print(table(Predicted = pr.qda$class, Actual = test_iris$Species))
+
+# lda.fit = write code to fit LDA model to niris
+# qda.fit = write code to fit QDA model to niris
+```
+
+The code below generates a grid on a square that contains all observations.
+
+```{r}
+xmin = min(niris$SLength)-1   #Obtaining the minimum, minus one to cover all observations
+xmax = max(niris$SLength)+1   #Obtaining the maximum, plus one to cover all observations
+ymin = min(niris$SWidth)-1   #Obtaining the minimum, minus one to cover all observations
+ymax = max(niris$SWidth)+1   #Obtaining the maximum, plus one to cover all observations
+
+many = 100        #Number of points per side of the grid
+x_grid = seq(xmin,xmax,length.out = many) #Computing the grid edge
+y_grid = seq(ymin,ymax,length.out = many) #Computing the grid edge
+```
+
+
+In the code below, we first plot the data points. Then we go through all grid points, predict their class, and draw the gridpoint coloured according to class. Edit the commented code to draw the classification regions:
+
+```{r}
+
+par(mfrow=c(1,2))
+par(mar=c(0.1,0.1,2,0.1))
+plot(X,pch=y-1,col=y+1,main="LDA",yaxt='n',xaxt='n')
+
+for(j in 1:many){
+  for(k in 1:many){
+    new = data.frame(SLength=x_grid[j], SWidth = y_grid[k])
+    # new.pred.lda = use predict() to predict the class of the observation "new" using LDA
+    new.pred.lda = predict(lda.fit, new)
+    curr_obs=as.numeric(new.pred.lda$class)
+    points(x_grid[j],y_grid[k],col=curr_obs+1,pch=3,cex=0.5)  
+  }
+}
+
+plot(X,pch=y-1,col=y+1,main="QDA",yaxt='n',xaxt='n')
+for(j in 1:many){
+  for(k in 1:many){
+    new = data.frame(SLength=x_grid[j], SWidth = y_grid[k])
+    # new.pred.qda = use predict() to predict the class of the observation "new" using QDA
+    new.pred.qda = predict(qda.fit, new)
+    curr_obs=as.numeric(new.pred.qda$class)
+    points(x_grid[j],y_grid[k],col=curr_obs+1,pch=3,cex=0.5)   
+  }
+}
+```
+
+Principal Component Analysis and K-means
+
+```{r}
+data = scale(iris[,1:4])
+print(cor(data))
+
+p = princomp(x = data)
+summary(p)
+scores = p$scores[, 1:2]
+
+biplot(p)
+
+set.seed(50)
+km = kmeans(p$scores[, 1:2], 3)
+
+plot(scores,
+     col  = km$cluster,
+     pch  = 19,
+     main = "K-means (K=3) on First Two PCs",
+     xlab = "PC1", ylab = "PC2")
+legend("topright",
+       legend = paste("Cluster", 1:3),
+       col    = 1:3, pch = 19)
+
+# Plot coloured by species
+plot(scores,
+     col  = as.numeric(iris$Species),
+     pch  = 19,
+     main = "True Species on First Two PCs",
+     xlab = "PC1", ylab = "PC2")
+legend("topright",
+       legend = levels(iris$Species),
+       col    = 1:3, pch = 19)
+
+```
+
+Regulariseret regression
+
+install.packages("ISLR")
+install.packages("glmnet")
+library(ISLR)
+library(glmnet)
+
+```{r}
+set.seed(55)
+data(College)
+
+index_c = sample(1:nrow(College), round(0.7 * nrow(College)), replace = FALSE)
+train_c = College[index_c, ]
+test_c = College[-index_c, ]
+
+OLS <- lm(Apps ~ ., data = train_c)
+OLS_p <- predict(OLS, test_c)
+OLS_mse <- mean((test_c$Apps - OLS_p)^2)
+cat("OLS test MSE:", OLS_mse, "\n")
+
+x_train <- model.matrix(Apps ~ ., train_c)[, -1]
+y_train <- train_c$Apps
+x_test  <- model.matrix(Apps ~ ., test_c)[, -1]
+y_test  <- test_c$Apps
+
+# Alpha er 0 da dette giver ridge regression (Elastic net)
+cv_ridge   <- cv.glmnet(x_train, y_train, alpha = 0, standardize = TRUE)
+best_lam_r <- cv_ridge$lambda.min
+cat("Ridge best lambda:", best_lam_r, "\n")
+
+ridge_pred <- predict(cv_ridge, s = best_lam_r, newx = x_test)
+ridge_mse  <- mean((y_test - ridge_pred)^2)
+cat("Ridge test MSE:", ridge_mse, "\n")
+
+plot(cv_ridge)
+
+# Alpha er 1 da dette giver lasso regression (Elastic net)
+cv_lasso   <- cv.glmnet(x_train, y_train, alpha = 1, standardize = TRUE)
+best_lam_l <- cv_lasso$lambda.min
+cat("Lasso best lambda:", best_lam_l, "\n")
+
+lasso_pred <- predict(cv_lasso, s = best_lam_l, newx = x_test)
+lasso_mse  <- mean((y_test - lasso_pred)^2)
+cat("Lasso test MSE:", lasso_mse, "\n")
+
+lasso_coef    <- predict(cv_lasso, s = best_lam_l, type = "coefficients")
+nonzero_count <- sum(lasso_coef != 0) - 1 
+cat("Lasso non-zero coefficients:", nonzero_count, "\n")
+
+plot(cv_lasso)
+
+results <- data.frame(
+  Method = c("OLS", "Ridge", "Lasso"),
+  Test_MSE = c(OLS_mse, ridge_mse, lasso_mse)
+)
+print(results)
+
+```
+
+Bagging and Boosting
+
+install.packages(c("rpart", "rpart.plot", "randomForest", "gbm"))
+library(randomForest)
+library(gbm)
+
+```{r, ehco=FALSE}
+# Data handling
+day = read.csv("H:\\AAU - Uni\\Statistics Learning - Data mining\\Bike-Sharing-Dataset\\day.csv")
+
+day$season     <- factor(day$season)
+day$holiday    <- factor(day$holiday)
+day$workingday <- factor(day$workingday)
+day$weathersit <- factor(day$weathersit)
+
+set.seed(42)
+index_b1   <- sample(nrow(day), 0.8 * nrow(day))
+train <- day[index_b1, ]
+test  <- day[-index_b1, ]
+
+# Bagging
+p <- 7
+
+bag_fit <- randomForest(
+  cnt ~ atemp + hum + windspeed + season + holiday + workingday + weathersit,
+  data       = train,
+  mtry       = p,       
+  ntree      = 500,
+  importance = TRUE
+)
+
+varImpPlot(bag_fit, main = "Bagging — variable importance")
+importance(bag_fit)   
+
+preds_bag <- predict(bag_fit, newdata = test)
+cat("\n Bagging MSE: \n")
+mean((test$cnt - preds_bag)^2)
+
+# Boosting
+depths <- c(1, 2, 3, 4, 6)
+mse_boost <- numeric(length(depths))
+
+for (i in seq_along(depths)) {
+  boost <- gbm(
+    cnt ~ atemp + hum + windspeed + season + holiday + workingday + weathersit,
+    data              = train,
+    distribution      = "gaussian",   # regression
+    n.trees           = 1000,
+    interaction.depth = depths[i],
+    shrinkage         = 0.01,
+    cv.folds          = 5,            
+    verbose           = FALSE
+  )
+  best_iter <- gbm.perf(boost, method = "cv", plot.it = FALSE)
+  preds     <- predict(boost, newdata = test, n.trees = best_iter)
+  mse_boost[i] <- mean((test$cnt - preds)^2)
+}
+
+data.frame(depth = depths, MSE = round(mse_boost, 1))
+
+best_depth <- depths[which.min(mse_boost)]
+boost_best <- gbm(
+  cnt ~ atemp + hum + windspeed + season + holiday + workingday + weathersit,
+  data              = train,
+  distribution      = "gaussian",
+  n.trees           = 1000,
+  interaction.depth = best_depth,
+  shrinkage         = 0.01,
+  cv.folds          = 5,
+  verbose           = FALSE
+)
+best_iter <- gbm.perf(boost_best, method = "cv", plot.it = FALSE)
+summary(boost_best, n.trees = best_iter)  
+```
+Bagging and Boosting MSE over B trees
+
+```{r}
+# Data handling
+day = read.csv("H:\\AAU - Uni\\Statistics Learning - Data mining\\Bike-Sharing-Dataset\\day.csv")
+
+day$season     <- factor(day$season)
+day$holiday    <- factor(day$holiday)
+day$workingday <- factor(day$workingday)
+day$weathersit <- factor(day$weathersit)
+
+set.seed(42)
+index_b2   <- sample(nrow(day), 0.8 * nrow(day))
+train <- day[index_b2, ]
+test  <- day[-index_b2, ]
+
+# Bagging
+bag_fit <- randomForest(
+  cnt ~ atemp + hum + windspeed + season + holiday + workingday + weathersit,
+  data       = train,
+  mtry       = 7,  
+  ntree      = 5000,
+  importance = TRUE
+)
+
+bag_mse <- sapply(1:5000, function(n) {
+  preds <- predict(bag_fit, newdata = test, predict.all = TRUE)$individual[, 1:n, drop = FALSE]
+  row_means <- rowMeans(preds)
+  mean((test$cnt - row_means)^2)
+})
+
+
+# --- Boosting: depth 1 ---
+boost_d1 <- gbm(
+  cnt ~ atemp + hum + windspeed + season + holiday + workingday + weathersit,
+  data              = train,
+  distribution      = "gaussian",
+  n.trees           = 5000,
+  interaction.depth = 1,
+  shrinkage         = 0.01,
+  verbose           = FALSE
+)
+
+boost_d1_mse <- sapply(1:5000, function(n) {
+  preds <- predict(boost_d1, newdata = test, n.trees = n)
+  mean((test$cnt - preds)^2)
+})
+
+# --- Boosting: depth 2 ---
+boost_d2 <- gbm(
+  cnt ~ atemp + hum + windspeed + season + holiday + workingday + weathersit,
+  data              = train,
+  distribution      = "gaussian",
+  n.trees           = 5000,
+  interaction.depth = 2,
+  shrinkage         = 0.01,
+  verbose           = FALSE
+)
+
+boost_d2_mse <- sapply(1:5000, function(n) {
+  preds <- predict(boost_d2, newdata = test, n.trees = n)
+  mean((test$cnt - preds)^2)
+})
+
+# --- Plot ---
+plot(1:5000, bag_mse,
+     type = "l", col = "cyan3", lwd = 2,
+     ylim = range(c(bag_mse, boost_d1_mse, boost_d2_mse)),
+     xlab = "Number of Trees", ylab = "Test MSE",
+     main = "Test MSE vs Number of Trees")
+
+lines(1:5000, boost_d1_mse, col = "gold3",  lwd = 2)
+lines(1:5000, boost_d2_mse, col = "orange", lwd = 2)
+
+legend("topright",
+       legend = c("Boosting: d=1", "Boosting: d=2", paste0("Bagging")),
+       col    = c("gold3", "orange", "cyan3"),
+       lwd    = 2)
+```
+
+Support Vector Machine
+
+install.packages('e1071')
+install.packages('caret')
+library(e1071)
+library(caret)
+
+```{r}
+set.seed(70)
+
+data(iris)
+index_s <- sample(1:nrow(iris), 0.5 * nrow(iris))
+iris_train <- iris[index_s, ]
+iris_test <- iris[-index_s, ]
+
+# Linear SVM
+model_linear <- svm(Species ~ ., data = iris_train, kernel = "linear", cost = 0.1, scale = TRUE)
+
+tuned_linear <- tune(svm, Species ~ ., data = iris_train, 
+                     ranges = list(epsilon = seq(0, 1, 0.1), 
+                                   cost = 2^(-3:7)))
+plot(tuned_linear)
+best_linear <- tuned_linear$best.model
+
+# Confusion matrices
+predicted_ini <- predict(model_linear, iris_test[, -5])
+predicted_best <- predict(best_linear, iris_test[, -5])
+confusionMatrix(table(predicted_ini, iris_test$Species))
+confusionMatrix(table(predicted_best, iris_test$Species))
+
+# Decision boundary plot
+plot(model_linear, iris_train,
+     Petal.Width ~ Petal.Length,
+     slice = list(Sepal.Length = mean(iris$Sepal.Length),
+                  Sepal.Width  = mean(iris$Sepal.Width)),
+     main = "SVM classification plot (linear)")
+plot(best_linear, iris_train,
+     Petal.Width ~ Petal.Length,
+     slice = list(Sepal.Length = mean(iris$Sepal.Length),
+                  Sepal.Width  = mean(iris$Sepal.Width)),
+     main = "Best SVM classification plot (linear)")
+
+# Radial SVM
+model_radial <- svm(Species ~ ., data = iris_train,
+                    kernel = "radial", cost = 1, gamma = 0.5,
+                    scale = TRUE)
+
+tuned_radial <- tune(svm, Species ~ ., data = iris_train,
+                     kernel = "radial",
+                     ranges = list(cost  = 2^(-3:6),
+                                  gamma = 10^(-3:1)))
+plot(tuned_radial)
+best_radial <- tuned_radial$best.model
+
+# Confusion matrices
+predicted_ini <- predict(model_radial, iris_test[, -5])
+predicted_best <- predict(best_radial, iris_test[, -5])
+confusionMatrix(table(predicted_ini, iris_test$Species))
+confusionMatrix(table(predicted_best, iris_test$Species))
+
+# Decision boundary
+plot(model_radial, iris_train,
+     Petal.Width ~ Petal.Length,
+     slice = list(Sepal.Length = mean(iris$Sepal.Length),
+                  Sepal.Width  = mean(iris$Sepal.Width)),
+     main = "SVM classification plot (radial)")
+plot(best_radial, iris_train,
+     Petal.Width ~ Petal.Length,
+     slice = list(Sepal.Length = mean(iris$Sepal.Length),
+                  Sepal.Width  = mean(iris$Sepal.Width)),
+     main = "Best SVM classification plot (radial)")
+```
+NN compared to LDA and QDA using all features
+
+```{r}
+# Data handling
+set.seed(120)
+data(iris)
+
+X = iris[,1:4]
+niris = data.frame(Species=y,
+                   SLength = X[,1], SWidth  = X[,2],
+                   PLength = X[,3], PWidth  = X[,4])
+
+niris2 = data.frame(SLength = X[,1], SWidth  = X[,2],
+                    PLength = X[,3], PWidth  = X[,4])
+niris2$setosa     <- as.integer(iris[,5] == "setosa")
+niris2$versicolor <- as.integer(iris[,5] == "versicolor")
+niris2$virginica  <- as.integer(iris[,5] == "virginica")
+
+index_da = sample(1:nrow(niris), round(0.5 * nrow(niris)), replace=FALSE)
+train_iris = niris[index_da, ]
+test_iris = niris[-index_da, ]
+test_iris$Species  <- factor(test_iris$Species,  levels=1:3, labels=c("setosa","versicolor","virginica"))
+train_iris$Species <- factor(train_iris$Species, levels=1:3, labels=c("setosa","versicolor","virginica"))
+index_nn = sample(1:nrow(niris2), round(0.5 * nrow(niris2)), replace = FALSE)
+train_iris2 = niris2[index_nn, ]
+test_iris2 = niris2[-index_nn, ]
+
+# Model fit and predictions
+lda.fit = lda(Species ~ SLength + SWidth + PLength + PWidth, data=train_iris)
+qda.fit = qda(Species ~ SLength + SWidth + PLength + PWidth, data=train_iris)
+nn = neuralnet("setosa + versicolor + virginica ~ SLength + SWidth + PLength + PWidth",
+               data=train_iris2, hidden=c(4, 2), linear.output=FALSE, act.fct="logistic")
+plot(nn)
+pr.nn = compute(nn, test_iris2[, c("SLength", "SWidth", "PLength", "PWidth")])
+
+pr.lda = predict(lda.fit, test_iris)
+pr.qda = predict(qda.fit, test_iris)
+
+pr.nn.mat = pr.nn$net.result
+colnames(pr.nn.mat) = c("setosa", "versicolor", "virginica")
+
+pr.nn.class = apply(pr.nn.mat, 1, which.max)
+pr.nn.class = factor(pr.nn.class, levels=1:3, labels = c("setosa", "versicolor", "virginica"))
+
+# Confusion matrices
+cat("\n LDA Confusion Matrix:\n")
+print(table(Predicted = pr.lda$class, Actual = test_iris$Species))
+
+cat("\n NN Confusion Matrix:\n")
+print(table(Predicted = pr.nn.class, Actual = test_iris$Species))
+
+cat("\n QDA Confusion Matrix:\n")
+print(table(Predicted = pr.qda$class, Actual = test_iris$Species))
+
+# Plot setup
+xmin = min(niris$PLength) - 1
+xmax = max(niris$PLength) + 1
+ymin = min(niris$PWidth)  - 1
+ymax = max(niris$PWidth)  + 1
+
+many    = 100
+x_grid  = seq(xmin, xmax, length.out = many)
+y_grid  = seq(ymin, ymax, length.out = many)
+
+mean_SLength = mean(niris$SLength)
+mean_SWidth  = mean(niris$SWidth)
+
+par(mfrow = c(1, 2))
+par(mar  = c(0.1, 0.1, 2, 0.1))
+
+# Plot of LDA
+plot(niris$PLength, niris$PWidth,
+     pch = y - 1, col = y + 1,
+     main = "LDA", xaxt = 'n', yaxt = 'n')
+
+for (j in 1:many) {
+  for (k in 1:many) {
+    new = data.frame(SLength = mean_SLength,
+                     SWidth  = mean_SWidth,
+                     PLength = x_grid[j],
+                     PWidth  = y_grid[k])
+    new.pred.lda = predict(lda.fit, new)
+    curr_obs = as.numeric(new.pred.lda$class)
+    points(x_grid[j], y_grid[k], col = curr_obs + 1, pch = 3, cex = 0.5)
+  }
+}
+
+# Plot of QDA
+plot(niris$PLength, niris$PWidth,
+     pch = y - 1, col = y + 1,
+     main = "QDA", xaxt = 'n', yaxt = 'n')
+
+for (j in 1:many) {
+  for (k in 1:many) {
+    new = data.frame(SLength = mean_SLength,
+                     SWidth  = mean_SWidth,
+                     PLength = x_grid[j],
+                     PWidth  = y_grid[k])
+    new.pred.qda = predict(qda.fit, new)
+    curr_obs = as.numeric(new.pred.qda$class)
+    points(x_grid[j], y_grid[k], col = curr_obs + 1, pch = 3, cex = 0.5)
+  }
+}
+
+# Plot of NN
+grid_df = expand.grid(PLength = x_grid,
+                      PWidth  = y_grid)
+grid_df$SLength = mean_SLength
+grid_df$SWidth  = mean_SWidth
+
+pr_grid      = compute(nn, grid_df[, c("SLength", "SWidth", "PLength", "PWidth")])
+grid_df$class = apply(pr_grid$net.result, 1, which.max)
+
+plot(niris$PLength, niris$PWidth,
+     pch = y - 1, col = y + 1,
+     main = "NN", xaxt = 'n', yaxt = 'n')
+
+points(grid_df$PLength, grid_df$PWidth,
+       col = grid_df$class + 1, pch = 3, cex = 0.5)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
